@@ -1,2 +1,7 @@
 pyTelegramBotAPI
+
+requests
+
 feedparser
+
+flask
