@@ -3,8 +3,26 @@ from telebot import types
 import requests
 import time
 import feedparser
+import os
+from threading import Thread
+from flask import Flask
 
-# --- তোর প্রোজেক্ট সেটিংস ---
+# --- ওয়েব সার্ভার সেটিংস (রেন্ডার ফ্রিতে চালানোর জন্য) ---
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+# --- তোর প্রোজেক্ট কনফিগারেশন ---
 TOKEN = '8151034575:AAGpsgO_q9xov-jsIDU0vDWXP1AhuL8UnPA'
 CHANNEL_ID = '@ivesportshd'
 BLOG_ID = '6755711535964707453' 
@@ -16,7 +34,6 @@ LOGO_URL = "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiYpa4l92c
 bot = telebot.TeleBot(TOKEN)
 RSS_URL = "https://news.google.com/rss/search?q=sports+news&hl=bn&gl=BD&ceid=BD:bn"
 
-# একই পোস্ট বারবার আসা বন্ধ করতে মেমোরি
 posted_titles = set()
 
 def post_to_blogger(title, content):
@@ -24,7 +41,7 @@ def post_to_blogger(title, content):
         url = f"https://www.googleapis.com/blogger/v3/blogs/{BLOG_ID}/posts/"
         blog_content = f"""
         <div style="text-align: center; font-family: Arial, sans-serif;">
-            <img src="{LOGO_URL}" style="width: 100%; max-width: 600px; border-radius: 15px;" alt="Sports News"/>
+            <img src="{LOGO_URL}" style="width: 100%; max-width: 600px; border-radius: 15px;" alt="News"/>
             <h1 style="color: #1a1a1a; margin-top: 20px;">{title}</h1>
             <div style="font-size: 18px; line-height: 1.6; color: #444; text-align: justify; padding: 0 15px;">
                 {content}
@@ -35,10 +52,9 @@ def post_to_blogger(title, content):
             </a>
         </div>
         """
-        payload = {{"kind": "blogger#post", "title": title, "content": blog_content}}
-        requests.post(url, json=payload, params={{'key': API_KEY}})
-    except Exception as e:
-        print(f"Blogger Error: {{e}}")
+        payload = {"kind": "blogger#post", "title": title, "content": blog_content}
+        requests.post(url, json=payload, params={'key': API_KEY})
+    except: pass
 
 def post_to_channel():
     global posted_titles
@@ -49,25 +65,18 @@ def post_to_channel():
                 title = entry.title
                 if title not in posted_titles:
                     summary = entry.summary
-                    
-                    # টেলিগ্রাম বাটন সেটআপ (একদম ঠিকঠাক)
                     markup = types.InlineKeyboardMarkup()
-                    btn_blog = types.InlineKeyboardButton("📺 সরাসরি খেলা দেখুন", url=BLOGGER_LINK)
-                    btn_tele = types.InlineKeyboardButton("📢 জয়েন টেলিগ্রাম", url="https://t.me/ivesportshd")
-                    markup.add(btn_blog)
-                    markup.add(btn_tele)
+                    markup.add(types.InlineKeyboardButton("📺 সরাসরি খেলা দেখুন", url=BLOGGER_LINK))
+                    markup.add(types.InlineKeyboardButton("📢 জয়েন টেলিগ্রাম", url="https://t.me/ivesportshd"))
                     
-                    bot.send_message(CHANNEL_ID, f"🆕 **{{title}}**\n\nবিস্তারিত আপডেট পেতে নিচের বাটনে ক্লিক করুন।", reply_markup=markup, parse_mode="Markdown")
-                    
-                    # ব্লগারেও পোস্ট হবে
+                    bot.send_message(CHANNEL_ID, f"🆕 **{title}**\n\nবিস্তারিত আপডেট পেতে নিচের বাটনে ক্লিক করুন।", reply_markup=markup, parse_mode="Markdown")
                     post_to_blogger(title, summary)
-                    
                     posted_titles.add(title)
                     break
-    except Exception as e:
-        print(f"Telegram Error: {{e}}")
+    except: pass
 
 if __name__ == "__main__":
+    keep_alive() # রেন্ডারকে খুশি রাখার জন্য ভুয়া সার্ভার চালু
     while True:
         post_to_channel()
-        time.sleep(1800) # ৩০ মিনিট পর পর চেক করবে
+        time.sleep(1800)
